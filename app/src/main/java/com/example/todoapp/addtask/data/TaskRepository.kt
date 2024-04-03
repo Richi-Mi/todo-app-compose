@@ -1,6 +1,5 @@
 package com.example.todoapp.addtask.data
 
-import androidx.room.Insert
 import com.example.todoapp.ui.model.TaskModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -14,6 +13,17 @@ class TaskRepository @Inject constructor( private val taskDao: TaskDao ){
     }
     }
     suspend fun add( taskModel: TaskModel ) {
-        taskDao.addTask( TaskEntity( taskModel.id, taskModel.task, taskModel.selected ))
+        taskDao.addTask( taskModel.toData() )
     }
+
+    suspend fun update(taskModel: TaskModel) {
+        taskDao.updateTask( taskModel.toData() )
+    }
+
+    suspend fun delete(taskModel: TaskModel) {
+        taskDao.deleteTask( taskModel.toData() )
+    }
+}
+fun TaskModel.toData() : TaskEntity {
+    return TaskEntity( this.id, this.task, this.selected )
 }
