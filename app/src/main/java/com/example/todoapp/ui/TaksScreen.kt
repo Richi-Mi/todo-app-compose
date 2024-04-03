@@ -1,14 +1,11 @@
 package com.example.todoapp.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,6 +17,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -28,45 +26,65 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.example.todoapp.ui.model.TaskModel
 
 @Composable
 fun TasksScreen(taskViewModel: TaskViewModel) {
-
     val showDialog by taskViewModel.showDialog.observeAsState(initial = false)
+    val livecycle = LocalLifecycleOwner.current.lifecycle
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        AddTaskDialog(
-            show = showDialog,
-            onDissmiss = {
-                taskViewModel.closeDialog()
-            }, onTaskAdded = {
-                taskViewModel.onTaskCreated(it)
-            })
-        FabDialog( modifier = Modifier.align(Alignment.BottomEnd), taskViewModel )
-        TasksList( taskViewModel )
+    val uiState by produceState<TaskUIState>(
+        initialValue = TaskUIState.Loading,
+        key1 = livecycle,
+        key2 = taskViewModel
+    ) {
+            livecycle.repeatOnLifecycle( state = Lifecycle.State.STARTED ) {
+                taskViewModel.uiState.collect {
+                    value = it
+                }
+            }
+    }
+
+    when( uiState ) {
+        is TaskUIState.Error -> {}
+        TaskUIState.Loading -> {
+            CircularProgressIndicator()
+        }
+        is TaskUIState.Success -> {
+            Box(modifier = Modifier.fillMaxSize()) {
+                AddTaskDialog(
+                    show = showDialog,
+                    onDissmiss = {
+                        taskViewModel.closeDialog()
+                    }, onTaskAdded = {
+                        taskViewModel.onTaskCreated(it)
+                    })
+                FabDialog( modifier = Modifier.align(Alignment.BottomEnd), taskViewModel )
+                TasksList( (uiState as TaskUIState.Success).tasks, taskViewModel )
+            }
+        }
     }
 }
 
 @Composable
-fun TasksList( taskViewModel: TaskViewModel ) {
-
-    val myTasks: List<TaskModel> = taskViewModel.task
-
+fun TasksList(tasks: List<TaskModel>, taskViewModel: TaskViewModel ) {
     LazyColumn {
-        this.items( myTasks, key = { it.id } ) { // Optimizamos los lazy column al darle un id unica a cada item com key
+        this.items( tasks, key = { it.id } ) { // Optimizamos los lazy column al darle un id unica a cada item com key
             ItemTask(taskModel = it, taskViewModel = taskViewModel )
         }
     }
@@ -77,9 +95,9 @@ fun ItemTask( taskModel: TaskModel, taskViewModel: TaskViewModel ) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(8.dp)
-            .pointerInput( Unit ) { // Control de varios tipos de clicks
-                detectTapGestures( onLongPress = {// Cuando se deja presionado
-                    taskViewModel.onItemRemove( taskModel )
+            .pointerInput(Unit) { // Control de varios tipos de clicks
+                detectTapGestures(onLongPress = {// Cuando se deja presionado
+                    taskViewModel.onItemRemove(taskModel)
                 })
             }
     ) {
